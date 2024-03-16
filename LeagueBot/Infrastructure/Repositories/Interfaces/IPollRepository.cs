@@ -7,5 +7,8 @@ namespace LeagueBot.Infrastructure.Repositories.Interfaces
     {
         DailyPoll GetTodayPollByChatId(string chatId);
         void ChangePollState(DailyPoll dailyPoll);
+        void AddPollAnswer(User user, int answer, string pollId);
+        void StartPoll(DailyPoll dailyPoll, string pollId);
+        void StopPoll(DailyPoll dailyPoll);
     }
 }

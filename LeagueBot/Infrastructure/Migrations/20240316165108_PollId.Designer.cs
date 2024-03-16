@@ -3,6 +3,7 @@ using System;
 using LeagueBot.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,10 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace LeagueBot.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationContext))]
-    partial class ApplicationContextModelSnapshot : ModelSnapshot
+    [Migration("20240316165108_PollId")]
+    partial class PollId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -57,9 +59,6 @@ namespace LeagueBot.Infrastructure.Migrations
 
                     b.Property<string>("PollId")
                         .HasColumnType("text");
-
-                    b.Property<bool>("PollIsFinished")
-                        .HasColumnType("boolean");
 
                     b.Property<bool>("PollIsStarted")
                         .HasColumnType("boolean");

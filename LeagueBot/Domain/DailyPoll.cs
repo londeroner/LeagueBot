@@ -9,7 +9,9 @@ namespace LeagueBot.Domain
     public class DailyPoll : BaseEntity
     {
         public bool PollIsStarted { get; set; } = false;
+        public bool PollIsFinished { get; set; } = false;
         public string ChatId { get; set; }
+        public string PollId { get; set; }
         public TimeOnly TimeToStartVote { get; set; }
         public TimeOnly TimeToStartGame { get; set; }
         public DateTime PollDate { get; set; }

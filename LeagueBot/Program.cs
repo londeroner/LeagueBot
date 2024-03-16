@@ -63,6 +63,7 @@ namespace LeagueBot
                             services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
                             services.AddScoped<IPollRepository, PollRepository>();
                             services.AddScoped<IChatRepository, ChatRepository>();
+                            services.AddScoped<IUserRepository, UserRepository>();
                             services.AddScoped<ILifeTimeCycle, LifeTimeCycle>();
                             services.AddScoped<ILeagueBotClient, LeagueBotClient>();
                         })

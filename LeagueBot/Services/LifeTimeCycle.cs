@@ -43,11 +43,10 @@ namespace LeagueBot.Services
             _timer = new Timer(tm, null, 0, _timerUpdate);
         }
 
-        public void Update(object param)
+        public async void Update(object param)
         {
             try
             {
-
                 var activeChats = _chatRepository.GetAllActiveChats().ToList();
 
                 foreach (var activeChat in activeChats)
@@ -65,17 +64,19 @@ namespace LeagueBot.Services
                         _repository.Add(dailyPoll);
                     }
 
-                    var timeToStartVoteDifference = DateTime.Now.TimeOfDay.TotalMinutes - dailyPoll.TimeToStartVote.ToTimeSpan().TotalMinutes;
-                    if (timeToStartVoteDifference > 0 && !dailyPoll.PollIsStarted)
-                    {
-                        _client.StartPoll(dailyPoll.ChatId);
-                    }
-
                     var timeToStartGameVoteDifference = DateTime.Now.TimeOfDay.TotalMinutes - dailyPoll.TimeToStartGame.ToTimeSpan().TotalMinutes;
-                    if (timeToStartGameVoteDifference > 0 && dailyPoll.PollIsStarted)
+                    if (timeToStartGameVoteDifference > 0 && dailyPoll.PollIsStarted && !dailyPoll.PollIsFinished)
                     {
                         var usersToNotify = dailyPoll.PollUserResults.Where(p => p.PollResult == PollResult.Yes).Select(u => u.User.UserName);
                         _client.NotifyPollUsers(dailyPoll.ChatId, usersToNotify);
+                        _pollRepository.StopPoll(dailyPoll);
+                    }
+
+                    var timeToStartVoteDifference = DateTime.Now.TimeOfDay.TotalMinutes - dailyPoll.TimeToStartVote.ToTimeSpan().TotalMinutes;
+                    if (timeToStartVoteDifference > 0 && !dailyPoll.PollIsStarted && !dailyPoll.PollIsFinished)
+                    {
+                        var pollId = await _client.StartPollAsync(dailyPoll.ChatId);
+                        _pollRepository.StartPoll(dailyPoll, pollId);
                     }
                 }
 

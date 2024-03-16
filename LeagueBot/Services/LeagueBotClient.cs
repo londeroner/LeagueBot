@@ -23,19 +23,27 @@ namespace LeagueBot.Services
         private readonly TelegramBotClient _client;
         private readonly ReceiverOptions _receiverOptions;
         private readonly ILogger<LeagueBotClient> _logger;
-        private readonly IGenericRepository<Domain.Chat> _genericRepository;
+        private readonly IGenericRepository<Domain.Chat> _genericChatRepository;
+        private readonly IGenericRepository<Domain.User> _genericUserRepository;
+        private readonly IUserRepository _userRepository;
         private readonly IChatRepository _chatRepository;
         private readonly IConfiguration _configuration;
+        private readonly IPollRepository _pollRepository;
 
         private readonly string _leagueBotUsername;
         
         public LeagueBotClient(ILogger<LeagueBotClient> logger, IConfiguration configuration, 
-            IGenericRepository<Domain.Chat> repository, IChatRepository chatRepository)
+            IGenericRepository<Domain.Chat> genericChatRepository, IChatRepository chatRepository,
+            IGenericRepository<Domain.User> genericUserRepository, IUserRepository userRepository,
+            IPollRepository pollRepository)
         {
             _configuration = configuration;
             var token = _configuration.GetValue<string>("BotToken");
 
-            _genericRepository = repository;
+            _genericChatRepository = genericChatRepository;
+            _genericUserRepository = genericUserRepository;
+            _pollRepository = pollRepository;
+            _userRepository = userRepository;
             _chatRepository = chatRepository;
             _logger = logger;
             _client = new TelegramBotClient(token);
@@ -53,14 +61,16 @@ namespace LeagueBot.Services
             _logger.LogInformation("Bot started");
         }
 
-        public async void StartPoll(string chatId)
+        public async Task<string> StartPollAsync(string chatId)
         {
-            await _client.SendPollAsync(
+            var poll = await _client.SendPollAsync(
                 chatId: chatId,
                 question: "Кто играет в лигу сегодня?",
                 allowsMultipleAnswers: false,
                 options: new[] { "Играю", "Не играю" },
                 isAnonymous: false);
+
+            return poll.Poll.Id;
         }
 
         public void NotifyPollUsers(string chatId, IEnumerable<string> userNames)
@@ -87,7 +97,7 @@ namespace LeagueBot.Services
                         {
                             await _client.SendTextMessageAsync(chatId,
                                 text: $"Привет! Я - ЛигаБот!\nЯ буду помогать вам собирать пати для игры в лигу по вечерам!" +
-                                $"\nЕсть несколько команд для взаимодействия со мной! Чтобы отправить команду, начните сообщения с @, укажите меня, и напишите команду через пробел.\n" +
+                                $"\nЕсть несколько команд для взаимодействия со мной! Чтобы отправить команду, начните сообщение с @, укажите меня, и напишите команду через пробел.\n" +
                                 $"Например: @{_leagueBotUsername} help",
                                 cancellationToken: cancellationToken);
 
@@ -101,9 +111,21 @@ namespace LeagueBot.Services
                     }
 
                     // Если отправили команду боту
-                    if (update.Message.Text.StartsWith($"@{_leagueBotUsername}"))
+                    if (update.Message.Text?.StartsWith($"@{_leagueBotUsername}") ?? false)
                         HandleCommand(update.Message.Text, chatId.ToString());
 
+                }
+                if (update.PollAnswer is { } pollAnswer)
+                {
+                    var user = _userRepository.GetUserByUserName(pollAnswer.User.Username);
+                    if (user == null)
+                    {
+                        user = new Domain.User() { UserName = pollAnswer.User.Username };
+                        _genericUserRepository.Add(user);
+                    }
+
+                    _pollRepository.AddPollAnswer(user, pollAnswer.OptionIds[0], pollAnswer.PollId);
+                    _logger.LogInformation($"Ответ пользователя {user.UserName} с результатом {pollAnswer.OptionIds[0]} был зарегистрирован");
                 }
             }
             catch (Exception ex)
@@ -117,7 +139,7 @@ namespace LeagueBot.Services
             var str = message.Split(" ");
             if (str.Length > 2)
             {
-                SendMessage("Извините, но я пока умею обрабатывать только одну команду за раз!", chatId);
+                SendMessage("Извините, но я пока умею обрабатывать только команды без параметров!", chatId);
                 return;
             }
 
@@ -125,24 +147,25 @@ namespace LeagueBot.Services
             switch (command)
             {
                 case "help":
-                    SendMessage("Вот полный список моих команд:\n\n*help* \\- показывает список доступных команд\n" +
+                    SendMessageWithParseMode("Вот полный список моих команд:\n\n*help* \\- показывает список доступных команд\n" +
                         "*activate* \\- активирует меня для этого чата, после чего я начну присылать голосования на участие в игре\n" +
-                        "*deactivate* \\- выключает меня для этого чата, чтобы прекратить создание голосований", chatId);
+                        "*deactivate* \\- выключает меня для этого чата, чтобы прекратить создание голосований\n" +
+                        "*version* \\- текущая версия", chatId);
                     break;
                 case "activate":
                     _chatRepository.ActivateChat(chatId);
                     SendMessage($"Ура, теперь я буду присылать голосования на участие в игре в {_configuration.GetValue<string>("DefaultTimeToStartVote")} " +
-                        $"и отмечать проголосовавших \"За\" участников в {_configuration.GetValue<string>("DefaultTimeToStartGame")!}", chatId);
+                        $"и отмечать проголосовавших \"За\" участников в {_configuration.GetValue<string>("DefaultTimeToStartGame")} (С задержкой до 5 минут)", chatId);
                     break;
                 case "deactivate":
                     _chatRepository.DeactivateChat(chatId);
-                    SendMessage($"Меня отключили \\:\\(\nДо повторной активации я не буду создавать голосования", chatId);
+                    SendMessage($"Меня отключили :(\nДо повторной активации я не буду создавать голосования", chatId);
                     break;
-                case "starttestpoll":
-                    StartPoll(chatId);
+                case "version":
+                    SendMessage($"Текущая версия бота 0.1", chatId);
                     break;
                 default:
-                    SendMessage("Пока я не знаю такой команды.", chatId);
+                    SendMessage("Пока я не знаю такой команды", chatId);
                     break;
             }
         }
@@ -162,15 +185,36 @@ namespace LeagueBot.Services
 
         private async void SendMessage(string message, string chatId)
         {
-            await _client.SendTextMessageAsync(
-                    chatId: chatId,
-                    parseMode: ParseMode.MarkdownV2,
-                    text: message);
+            try
+            {
+                await _client.SendTextMessageAsync(
+                        chatId: chatId,
+                        text: message);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception.Message);
+            }
+        }
+
+        private async void SendMessageWithParseMode(string message, string chatId)
+        {
+            try
+            {
+                await _client.SendTextMessageAsync(
+                        chatId: chatId,
+                        parseMode: ParseMode.MarkdownV2,
+                        text: message);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception.Message);
+            }
         }
 
         private void CreateChat(string chatId)
         {
-            _genericRepository.Add(new Domain.Chat() { ChatId = chatId });
+            _genericChatRepository.Add(new Domain.Chat() { ChatId = chatId });
         }
 
         private void DeleteChat(string chatId)
