@@ -13,17 +13,15 @@ namespace LeagueBot.Infrastructure
     {
         private readonly IConfiguration _config;
 
-        public ApplicationContext(IConfiguration config)
+        public ApplicationContext(IConfiguration config, DbContextOptions<ApplicationContext> options) : base(options)
         {
             _config = config;
+            AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
         }
 
         public DbSet<DailyPoll> DailyPolls { get; set; }
-
-        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        {
-            optionsBuilder.UseNpgsql(_config.GetConnectionString("DefaultConnection"));
-        }
+        public DbSet<Chat> Chats { get; set; }
+        public DbSet<User> Users { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

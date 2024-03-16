@@ -1,5 +1,9 @@
-﻿using LeagueBot.Services;
+﻿using LeagueBot.Infrastructure;
+using LeagueBot.Infrastructure.Repositories;
+using LeagueBot.Infrastructure.Repositories.Interfaces;
+using LeagueBot.Services;
 using LeagueBot.Services.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -11,11 +15,15 @@ namespace LeagueBot
 {
     public class Program
     {
-        private static readonly Timer _timer;
-
-        static Program()
+        public static void Main()
         {
-            _timer = new Timer();
+            var host = AppStartup();
+            var dbContext = ActivatorUtilities.GetServiceOrCreateInstance<DbContext>(host.Services);
+            var lifeTimeCycle = ActivatorUtilities.GetServiceOrCreateInstance<LifeTimeCycle>(host.Services);
+
+            while (true)
+            {
+            }
         }
 
         static void BuildConfig(IConfigurationBuilder builder)
@@ -24,6 +32,7 @@ namespace LeagueBot
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                 .AddEnvironmentVariables();
         }
+
         static IHost AppStartup()
         {
             var builder = new ConfigurationBuilder();
@@ -38,31 +47,29 @@ namespace LeagueBot
 
             Log.Logger.Information("Application Starting");
 
+            
+
             var host = Host.CreateDefaultBuilder()
                         .ConfigureServices((context, services) => {
-                            //services.AddTransient<IDataService, DataService>();
-                            services.AddSingleton<ILeagueBot, LeagueBotClient>();
+                            var serviceProvider = services.BuildServiceProvider();
+                            var config = serviceProvider.GetRequiredService<IConfiguration>();
+
+                            services.AddDbContext<ApplicationContext>(x =>
+                            {
+                                x.UseNpgsql(config.GetConnectionString("DefaultConnection"));
+                            });
+
+                            services.AddScoped<DbContext, ApplicationContext>();
+                            services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+                            services.AddScoped<IPollRepository, PollRepository>();
+                            services.AddScoped<IChatRepository, ChatRepository>();
+                            services.AddScoped<ILifeTimeCycle, LifeTimeCycle>();
+                            services.AddScoped<ILeagueBotClient, LeagueBotClient>();
                         })
                         .UseSerilog() 
                         .Build();
 
             return host;
-        }
-
-        public static void Main()
-        {
-            var host = AppStartup();
-            //var service = ActivatorUtilities.GetServiceOrCreateInstance<DataService>(host.Services);
-            var bot = ActivatorUtilities.GetServiceOrCreateInstance<LeagueBotClient>(host.Services);
-            
-            while (true)
-            {
-            }
-        }
-
-        private void TimerElapsed(object sender, ElapsedEventArgs e)
-        {
-            
         }
     }
 }

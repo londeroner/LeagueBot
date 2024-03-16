@@ -1,6 +1,0 @@
-2024-03-15 22:00:59.889 +03:00 [INF] Application Starting
-2024-03-15 22:01:00.118 +03:00 [INF] Connection String DataSource=app.db;Cache=Shared
-2024-03-15 22:10:21.299 +03:00 [INF] Application Starting
-2024-03-15 22:10:49.525 +03:00 [INF] Application Starting
-2024-03-15 22:12:09.992 +03:00 [INF] Application Starting
-2024-03-15 22:12:13.415 +03:00 [INF] Bot started
